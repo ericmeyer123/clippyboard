@@ -1,6 +1,13 @@
 import SwiftUI
 import Combine
 
+// ── Platform helpers ──────────────────────────────────
+#if os(iOS)
+import UIKit
+#elseif os(macOS)
+import AppKit
+#endif
+
 // ── Color helpers ─────────────────────────────────────
 extension Color {
     init(hex: String) {
@@ -16,6 +23,28 @@ extension Color {
     static let creamDeep = Color(hex: "EDE8DF")
     static let ink       = Color(hex: "1A1A18")
     static let inkLight  = Color(hex: "6B6B60")
+
+    static var appBackground: Color {
+        #if os(macOS)
+        Color(NSColor.windowBackgroundColor)
+        #else
+        Color(UIColor.systemBackground)
+        #endif
+    }
+    static var appSecondaryBackground: Color {
+        #if os(macOS)
+        Color(NSColor.controlBackgroundColor)
+        #else
+        Color(UIColor.secondarySystemBackground)
+        #endif
+    }
+    static var appTertiaryBackground: Color {
+        #if os(macOS)
+        Color(NSColor.underPageBackgroundColor)
+        #else
+        Color(UIColor.tertiarySystemBackground)
+        #endif
+    }
 }
 
 // ── Preset card colors ────────────────────────────────
@@ -100,7 +129,6 @@ struct AnyTemplateCard: Identifiable {
         id = t.id; title = t.title; tag = t.tag
         people = t.people.isEmpty ? nil : t.people
         colorLight = t.colorLight; colorDark = t.colorDark
-        // Replace [name] placeholder with the actual person name when copying
         resolveBody = { person in
             person.isEmpty ? t.bodyText : t.bodyText.replacingOccurrences(of: "[name]", with: person)
         }
@@ -147,6 +175,16 @@ final class TemplateStore: ObservableObject {
         if let i = customs.firstIndex(where: { $0.id == t.id }) { customs[i] = t; save() }
     }
     func delete(id: UUID) { customs.removeAll { $0.id == id }; save() }
+}
+
+// ── Clipboard copy ─────────────────────────────────────
+func copyToClipboard(_ text: String) {
+    #if os(macOS)
+    NSPasteboard.general.clearContents()
+    NSPasteboard.general.setString(text, forType: .string)
+    #else
+    UIPasteboard.general.string = text
+    #endif
 }
 
 // ── Built-in templates ────────────────────────────────
@@ -209,7 +247,7 @@ struct OnboardingView: View {
     @State private var step: Int = 0
     var body: some View {
         ZStack {
-            Color.cream.ignoresSafeArea()
+            Color.appBackground.ignoresSafeArea()
             switch step {
             case 0: WelcomeStep(onNext: { advance() })
             case 1: NameStep(settings: settings, onNext: { advance() })
@@ -222,8 +260,6 @@ struct OnboardingView: View {
             default: EmptyView()
             }
         }
-        .frame(minWidth: 480, minHeight: 580)
-        .preferredColorScheme(.light)
     }
     func advance() {
         withAnimation(.spring(response: 0.5, dampingFraction: 0.8)) { step += 1 }
@@ -236,7 +272,7 @@ struct StepDots: View {
         HStack(spacing: 6) {
             ForEach(0..<total, id: \.self) { i in
                 Capsule()
-                    .fill(i == current ? Color.ink : Color.inkLight.opacity(0.2))
+                    .fill(i == current ? Color.primary : Color.secondary.opacity(0.3))
                     .frame(width: i == current ? 20 : 6, height: 6)
                     .animation(.spring(duration: 0.3), value: current)
             }
@@ -249,12 +285,12 @@ struct OnboardingButton: View {
     var body: some View {
         Button(action: action) {
             Text(label)
-                .font(.system(size: 15, weight: .semibold, design: .rounded))
-                .foregroundStyle(filled ? .white : Color.inkLight)
+                .font(.system(size: 17, weight: .semibold, design: .rounded))
+                .foregroundStyle(filled ? Color.appBackground : Color.secondary)
                 .frame(maxWidth: .infinity)
-                .padding(.vertical, 14)
-                .background(filled ? Color.ink : Color.creamDeep)
-                .clipShape(RoundedRectangle(cornerRadius: 14))
+                .padding(.vertical, 16)
+                .background(filled ? Color.primary : Color.appSecondaryBackground)
+                .clipShape(RoundedRectangle(cornerRadius: 16))
                 .animation(.spring(duration: 0.25), value: filled)
         }
         .buttonStyle(.plain)
@@ -267,14 +303,14 @@ struct WelcomeStep: View {
     var body: some View {
         VStack(spacing: 0) {
             Spacer()
-            VStack(alignment: .leading, spacing: 16) {
+            VStack(alignment: .leading, spacing: 20) {
                 ZStack {
-                    RoundedRectangle(cornerRadius: 14)
-                        .fill(Color.ink)
-                        .frame(width: 52, height: 52)
+                    RoundedRectangle(cornerRadius: 18)
+                        .fill(Color.primary)
+                        .frame(width: 64, height: 64)
                     Text("C")
-                        .font(.system(size: 26, weight: .bold, design: .rounded))
-                        .foregroundStyle(.white)
+                        .font(.system(size: 32, weight: .bold, design: .rounded))
+                        .foregroundStyle(Color.appBackground)
                 }
                 .opacity(appeared ? 1 : 0)
                 .offset(y: appeared ? 0 : 20)
@@ -282,28 +318,28 @@ struct WelcomeStep: View {
 
                 VStack(alignment: .leading, spacing: 6) {
                     Text("Welcome to")
-                        .font(.system(size: 32, weight: .thin, design: .rounded))
-                        .foregroundStyle(Color.inkLight)
+                        .font(.system(size: 36, weight: .thin, design: .rounded))
+                        .foregroundStyle(Color.secondary)
                         .opacity(appeared ? 1 : 0)
                         .offset(y: appeared ? 0 : 16)
                         .animation(.spring(response: 0.6, dampingFraction: 0.75).delay(0.2), value: appeared)
                     Text("Clippyboard.")
-                        .font(.system(size: 32, weight: .bold, design: .rounded))
-                        .foregroundStyle(Color.ink)
+                        .font(.system(size: 36, weight: .bold, design: .rounded))
+                        .foregroundStyle(Color.primary)
                         .opacity(appeared ? 1 : 0)
                         .offset(y: appeared ? 0 : 16)
                         .animation(.spring(response: 0.6, dampingFraction: 0.75).delay(0.28), value: appeared)
                 }
-                Text("Your team's copy-paste toolkit.\nBeautiful templates, one click away.")
-                    .font(.system(size: 15, weight: .light, design: .rounded))
-                    .foregroundStyle(Color.inkLight)
+                Text("Your team's copy-paste toolkit.\nBeautiful templates, one tap away.")
+                    .font(.system(size: 17, weight: .light, design: .rounded))
+                    .foregroundStyle(Color.secondary)
                     .lineSpacing(4)
                     .opacity(appeared ? 1 : 0)
                     .offset(y: appeared ? 0 : 12)
                     .animation(.spring(response: 0.6, dampingFraction: 0.75).delay(0.38), value: appeared)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(.horizontal, 48)
+            .padding(.horizontal, 32)
             Spacer()
             VStack(spacing: 16) {
                 OnboardingButton(label: "Get started", filled: true, action: onNext)
@@ -314,8 +350,8 @@ struct WelcomeStep: View {
                     .opacity(appeared ? 1 : 0)
                     .animation(.spring(response: 0.6).delay(0.55), value: appeared)
             }
-            .padding(.horizontal, 48)
-            .padding(.bottom, 44)
+            .padding(.horizontal, 32)
+            .padding(.bottom, 48)
         }
         .onAppear { appeared = true }
     }
@@ -329,40 +365,40 @@ struct NameStep: View {
     var body: some View {
         VStack(spacing: 0) {
             Spacer()
-            VStack(alignment: .leading, spacing: 24) {
+            VStack(alignment: .leading, spacing: 28) {
                 VStack(alignment: .leading, spacing: 6) {
                     Text("First things first.")
-                        .font(.system(size: 13, weight: .light, design: .rounded))
-                        .foregroundStyle(Color.inkLight)
+                        .font(.system(size: 15, weight: .light, design: .rounded))
+                        .foregroundStyle(Color.secondary)
                         .opacity(appeared ? 1 : 0)
                         .animation(.spring(response: 0.5).delay(0.1), value: appeared)
                     Text("What's your name?")
-                        .font(.system(size: 32, weight: .bold, design: .rounded))
-                        .foregroundStyle(Color.ink)
+                        .font(.system(size: 34, weight: .bold, design: .rounded))
+                        .foregroundStyle(Color.primary)
                         .opacity(appeared ? 1 : 0)
                         .offset(y: appeared ? 0 : 12)
                         .animation(.spring(response: 0.6, dampingFraction: 0.75).delay(0.15), value: appeared)
                 }
-                Text("This will appear on every template you send.")
-                    .font(.system(size: 14, weight: .light, design: .rounded))
-                    .foregroundStyle(Color.inkLight)
+                Text("This appears on every template you send.")
+                    .font(.system(size: 16, weight: .light, design: .rounded))
+                    .foregroundStyle(Color.secondary)
                     .opacity(appeared ? 1 : 0)
                     .animation(.spring(response: 0.5).delay(0.22), value: appeared)
                 TextField("Your name", text: $settings.name)
                     .textFieldStyle(.plain)
-                    .font(.system(size: 22, weight: .light, design: .rounded))
-                    .foregroundStyle(Color.ink)
+                    .font(.system(size: 24, weight: .light, design: .rounded))
+                    .foregroundStyle(Color.primary)
                     .focused($focused)
                     .padding(.horizontal, 16)
-                    .padding(.vertical, 14)
-                    .background(Color.creamDeep)
-                    .clipShape(RoundedRectangle(cornerRadius: 12))
-                    .overlay(RoundedRectangle(cornerRadius: 12).stroke(focused ? Color.ink.opacity(0.3) : Color.clear, lineWidth: 1.5))
+                    .padding(.vertical, 16)
+                    .background(Color.appSecondaryBackground)
+                    .clipShape(RoundedRectangle(cornerRadius: 14))
+                    .overlay(RoundedRectangle(cornerRadius: 14).stroke(focused ? Color.primary.opacity(0.3) : Color.clear, lineWidth: 1.5))
                     .opacity(appeared ? 1 : 0)
                     .offset(y: appeared ? 0 : 10)
                     .animation(.spring(response: 0.6).delay(0.3), value: appeared)
             }
-            .padding(.horizontal, 48)
+            .padding(.horizontal, 32)
             Spacer()
             VStack(spacing: 16) {
                 OnboardingButton(
@@ -376,12 +412,12 @@ struct NameStep: View {
                     .opacity(appeared ? 1 : 0)
                     .animation(.spring(response: 0.6).delay(0.45), value: appeared)
             }
-            .padding(.horizontal, 48)
-            .padding(.bottom, 44)
+            .padding(.horizontal, 32)
+            .padding(.bottom, 48)
         }
         .onAppear {
             appeared = true
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) { focused = true }
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { focused = true }
         }
     }
 }
@@ -398,54 +434,53 @@ struct TeamStep: View {
             VStack(alignment: .leading, spacing: 20) {
                 VStack(alignment: .leading, spacing: 6) {
                     Text("Almost there.")
-                        .font(.system(size: 13, weight: .light, design: .rounded))
-                        .foregroundStyle(Color.inkLight)
+                        .font(.system(size: 15, weight: .light, design: .rounded))
+                        .foregroundStyle(Color.secondary)
                         .opacity(appeared ? 1 : 0)
                         .animation(.spring(response: 0.5).delay(0.1), value: appeared)
                     Text("Who's on your team?")
-                        .font(.system(size: 32, weight: .bold, design: .rounded))
-                        .foregroundStyle(Color.ink)
+                        .font(.system(size: 34, weight: .bold, design: .rounded))
+                        .foregroundStyle(Color.primary)
                         .opacity(appeared ? 1 : 0)
                         .offset(y: appeared ? 0 : 12)
                         .animation(.spring(response: 0.6, dampingFraction: 0.75).delay(0.15), value: appeared)
                 }
                 Text("These names appear as person pickers on your templates.")
-                    .font(.system(size: 14, weight: .light, design: .rounded))
-                    .foregroundStyle(Color.inkLight)
+                    .font(.system(size: 16, weight: .light, design: .rounded))
+                    .foregroundStyle(Color.secondary)
                     .opacity(appeared ? 1 : 0)
                     .animation(.spring(response: 0.5).delay(0.22), value: appeared)
                 HStack(spacing: 10) {
                     TextField("Add a name…", text: $newName)
                         .textFieldStyle(.plain)
-                        .font(.system(size: 15, weight: .light, design: .rounded))
-                        .foregroundStyle(Color.ink)
+                        .font(.system(size: 17, weight: .light, design: .rounded))
+                        .foregroundStyle(Color.primary)
                         .focused($focused)
-                        .padding(.horizontal, 14)
-                        .padding(.vertical, 11)
-                        .background(Color.creamDeep)
-                        .clipShape(RoundedRectangle(cornerRadius: 10))
+                        .padding(.horizontal, 14).padding(.vertical, 14)
+                        .background(Color.appSecondaryBackground)
+                        .clipShape(RoundedRectangle(cornerRadius: 12))
                         .onSubmit { addPerson() }
                     Button(action: addPerson) {
                         Image(systemName: "plus")
-                            .font(.system(size: 13, weight: .semibold, design: .rounded))
-                            .foregroundStyle(.white)
-                            .frame(width: 38, height: 38)
-                            .background(newName.trimmingCharacters(in: .whitespaces).isEmpty ? Color.inkLight.opacity(0.3) : Color.ink)
+                            .font(.system(size: 16, weight: .semibold, design: .rounded))
+                            .foregroundStyle(Color.appBackground)
+                            .frame(width: 46, height: 46)
+                            .background(newName.trimmingCharacters(in: .whitespaces).isEmpty ? Color.secondary.opacity(0.3) : Color.primary)
                             .clipShape(Circle())
                     }
-                    .buttonStyle(.plain)
                     .disabled(newName.trimmingCharacters(in: .whitespaces).isEmpty)
                     .animation(.spring(duration: 0.2), value: newName.isEmpty)
                 }
                 .opacity(appeared ? 1 : 0)
                 .animation(.spring(response: 0.6).delay(0.3), value: appeared)
+
                 if !settings.team.isEmpty {
-                    VStack(spacing: 6) {
+                    VStack(spacing: 8) {
                         ForEach(settings.team, id: \.self) { person in
                             HStack {
                                 Text(person)
-                                    .font(.system(size: 14, weight: .light, design: .rounded))
-                                    .foregroundStyle(Color.ink)
+                                    .font(.system(size: 16, weight: .light, design: .rounded))
+                                    .foregroundStyle(Color.primary)
                                 Spacer()
                                 Button {
                                     withAnimation(.spring(duration: 0.25)) {
@@ -453,24 +488,22 @@ struct TeamStep: View {
                                     }
                                 } label: {
                                     Image(systemName: "xmark")
-                                        .font(.system(size: 10, weight: .medium))
-                                        .foregroundStyle(Color.inkLight)
-                                        .frame(width: 22, height: 22)
-                                        .background(Color.creamDeep)
+                                        .font(.system(size: 11, weight: .medium))
+                                        .foregroundStyle(Color.secondary)
+                                        .frame(width: 26, height: 26)
+                                        .background(Color.appTertiaryBackground)
                                         .clipShape(Circle())
                                 }
-                                .buttonStyle(.plain)
                             }
-                            .padding(.horizontal, 14)
-                            .padding(.vertical, 10)
-                            .background(Color.creamDeep)
-                            .clipShape(RoundedRectangle(cornerRadius: 10))
+                            .padding(.horizontal, 14).padding(.vertical, 12)
+                            .background(Color.appSecondaryBackground)
+                            .clipShape(RoundedRectangle(cornerRadius: 12))
                             .transition(.move(edge: .top).combined(with: .opacity))
                         }
                     }
                 }
             }
-            .padding(.horizontal, 48)
+            .padding(.horizontal, 32)
             Spacer()
             VStack(spacing: 16) {
                 OnboardingButton(
@@ -484,8 +517,8 @@ struct TeamStep: View {
                     .opacity(appeared ? 1 : 0)
                     .animation(.spring(response: 0.6).delay(0.45), value: appeared)
             }
-            .padding(.horizontal, 48)
-            .padding(.bottom, 44)
+            .padding(.horizontal, 32)
+            .padding(.bottom, 48)
         }
         .onAppear {
             appeared = true
@@ -515,48 +548,48 @@ struct ReadyStep: View {
     var body: some View {
         VStack(spacing: 0) {
             Spacer()
-            VStack(alignment: .leading, spacing: 24) {
+            VStack(alignment: .leading, spacing: 28) {
                 VStack(alignment: .leading, spacing: 6) {
                     Text(firstName.isEmpty ? "You're all set." : "You're all set, \(firstName).")
-                        .font(.system(size: 32, weight: .bold, design: .rounded))
-                        .foregroundStyle(Color.ink)
+                        .font(.system(size: 34, weight: .bold, design: .rounded))
+                        .foregroundStyle(Color.primary)
                         .opacity(appeared ? 1 : 0)
                         .offset(y: appeared ? 0 : 12)
                         .animation(.spring(response: 0.6, dampingFraction: 0.75).delay(0.1), value: appeared)
                     Text("Here's a preview of your header template.")
-                        .font(.system(size: 14, weight: .light, design: .rounded))
-                        .foregroundStyle(Color.inkLight)
+                        .font(.system(size: 16, weight: .light, design: .rounded))
+                        .foregroundStyle(Color.secondary)
                         .opacity(appeared ? 1 : 0)
                         .animation(.spring(response: 0.5).delay(0.2), value: appeared)
                 }
                 ZStack(alignment: .topLeading) {
-                    RoundedRectangle(cornerRadius: 20)
+                    RoundedRectangle(cornerRadius: 24)
                         .fill(LinearGradient(colors: [Color(hex: "E8C99A"), Color(hex: "D4A574")], startPoint: .topLeading, endPoint: .bottomTrailing))
-                        .shadow(color: Color(hex: "D4A574").opacity(0.3), radius: 16, y: 6)
-                    RoundedRectangle(cornerRadius: 20)
+                        .shadow(color: Color(hex: "D4A574").opacity(0.35), radius: 20, y: 8)
+                    RoundedRectangle(cornerRadius: 24)
                         .fill(LinearGradient(colors: [Color.white.opacity(0.25), Color.clear], startPoint: .top, endPoint: .center))
-                    VStack(alignment: .leading, spacing: 8) {
+                    VStack(alignment: .leading, spacing: 10) {
                         Text("Header")
-                            .font(.system(size: 11, weight: .semibold, design: .rounded))
+                            .font(.system(size: 12, weight: .semibold, design: .rounded))
                             .foregroundStyle(.white.opacity(0.65))
                         Text("Copy header")
-                            .font(.system(size: 18, weight: .bold, design: .rounded))
+                            .font(.system(size: 20, weight: .bold, design: .rounded))
                             .foregroundStyle(.white)
                         Divider().background(Color.white.opacity(0.25))
                         Text(headerPreview)
-                            .font(.system(size: 12, weight: .light, design: .rounded))
+                            .font(.system(size: 13, weight: .light, design: .rounded))
                             .foregroundStyle(.white.opacity(0.88))
-                            .lineSpacing(4)
+                            .lineSpacing(5)
                     }
-                    .padding(20)
+                    .padding(22)
                 }
                 .frame(maxWidth: .infinity)
-                .frame(height: 180)
+                .frame(height: 200)
                 .opacity(appeared ? 1 : 0)
                 .offset(y: appeared ? 0 : 16)
                 .animation(.spring(response: 0.65, dampingFraction: 0.75).delay(0.3), value: appeared)
             }
-            .padding(.horizontal, 48)
+            .padding(.horizontal, 32)
             Spacer()
             VStack(spacing: 16) {
                 OnboardingButton(label: "Open Clippyboard →", filled: true, action: onDone)
@@ -566,8 +599,8 @@ struct ReadyStep: View {
                     .opacity(appeared ? 1 : 0)
                     .animation(.spring(response: 0.6).delay(0.5), value: appeared)
             }
-            .padding(.horizontal, 48)
-            .padding(.bottom, 44)
+            .padding(.horizontal, 32)
+            .padding(.bottom, 48)
         }
         .onAppear { appeared = true }
     }
@@ -581,21 +614,19 @@ struct MainView: View {
     @ObservedObject var store: TemplateStore
     @State private var showAdd = false
     @State private var editingCard: AnyTemplateCard? = nil
-    // Store builtIns in @State so UUIDs are stable across renders.
-    // Recompute only when name or team actually changes.
     @State private var builtIns: [BuiltInTemplate] = []
 
     var body: some View {
         ContentView(settings: settings, store: store, builtIns: builtIns, showAdd: $showAdd, editingCard: $editingCard)
-        .onAppear {
-            builtIns = makeBuiltIns(name: settings.name, team: settings.team)
-        }
-        .onChange(of: settings.name) { _, _ in
-            builtIns = makeBuiltIns(name: settings.name, team: settings.team)
-        }
-        .onChange(of: settings.team) { _, _ in
-            builtIns = makeBuiltIns(name: settings.name, team: settings.team)
-        }
+            .onAppear {
+                builtIns = makeBuiltIns(name: settings.name, team: settings.team)
+            }
+            .onChange(of: settings.name) { _, _ in
+                builtIns = makeBuiltIns(name: settings.name, team: settings.team)
+            }
+            .onChange(of: settings.team) { _, _ in
+                builtIns = makeBuiltIns(name: settings.name, team: settings.team)
+            }
             .sheet(isPresented: $showAdd) {
                 AddEditTemplateView(store: store, isPresented: $showAdd, editing: nil)
             }
@@ -646,7 +677,7 @@ struct ContentView: View {
 
     var body: some View {
         ZStack(alignment: .bottom) {
-            Color.cream.ignoresSafeArea()
+            Color.appBackground.ignoresSafeArea()
             VStack(spacing: 0) {
                 headerSection
                 filterBar
@@ -659,116 +690,106 @@ struct ContentView: View {
                     .zIndex(99)
             }
         }
-        .frame(minWidth: 460, minHeight: 700)
-        .preferredColorScheme(.light)
         .onChange(of: filtered.count) { _, _ in activeIndex = 0 }
     }
 
+    // ── Header ────────────────────────────────────────
     var headerSection: some View {
         VStack(alignment: .leading, spacing: 4) {
             HStack(alignment: .center) {
                 HStack(alignment: .firstTextBaseline, spacing: 7) {
                     Text("Hello,")
-                        .font(.system(size: 32, weight: .thin, design: .rounded))
-                        .foregroundStyle(Color.inkLight)
+                        .font(.system(size: 30, weight: .thin, design: .rounded))
+                        .foregroundStyle(Color.secondary)
                     Text("\(firstName.isEmpty ? "there" : firstName).")
-                        .font(.system(size: 32, weight: .bold, design: .rounded))
-                        .foregroundStyle(Color.ink)
+                        .font(.system(size: 30, weight: .bold, design: .rounded))
+                        .foregroundStyle(Color.primary)
                 }
                 Spacer()
                 HStack(spacing: 8) {
-                    // Settings / restart onboarding
                     Button {
                         withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
                             settings.hasCompletedOnboarding = false
                         }
                     } label: {
                         Image(systemName: "gearshape")
-                            .font(.system(size: 13, weight: .medium))
-                            .foregroundStyle(Color.ink)
-                            .frame(width: 34, height: 34)
-                            .background(Color.creamDeep)
-                            .clipShape(RoundedRectangle(cornerRadius: 9))
-                            .overlay(RoundedRectangle(cornerRadius: 9).stroke(Color.ink.opacity(0.08), lineWidth: 1))
+                            .font(.system(size: 14, weight: .medium))
+                            .foregroundStyle(Color.primary)
+                            .frame(width: 36, height: 36)
+                            .background(Color.appSecondaryBackground)
+                            .clipShape(RoundedRectangle(cornerRadius: 10))
                     }
-                    .buttonStyle(.plain)
 
-                    // Grid / deck toggle
                     Button {
                         withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) { showGrid.toggle() }
                     } label: {
                         Image(systemName: showGrid ? "rectangle.stack" : "square.grid.2x2")
-                            .font(.system(size: 13, weight: .medium))
-                            .foregroundStyle(Color.ink)
-                            .frame(width: 34, height: 34)
-                            .background(Color.creamDeep)
-                            .clipShape(RoundedRectangle(cornerRadius: 9))
-                            .overlay(RoundedRectangle(cornerRadius: 9).stroke(Color.ink.opacity(0.08), lineWidth: 1))
+                            .font(.system(size: 14, weight: .medium))
+                            .foregroundStyle(Color.primary)
+                            .frame(width: 36, height: 36)
+                            .background(Color.appSecondaryBackground)
+                            .clipShape(RoundedRectangle(cornerRadius: 10))
                     }
-                    .buttonStyle(.plain)
 
-                    // New template
                     Button { showAdd = true } label: {
-                        HStack(spacing: 5) {
-                            Image(systemName: "plus").font(.system(size: 11, weight: .semibold))
-                            Text("New").font(.system(size: 12, weight: .semibold, design: .rounded))
+                        HStack(spacing: 4) {
+                            Image(systemName: "plus").font(.system(size: 12, weight: .semibold))
+                            Text("New").font(.system(size: 13, weight: .semibold, design: .rounded))
                         }
-                        .foregroundStyle(Color.ink)
-                        .padding(.horizontal, 14).padding(.vertical, 8)
-                        .background(Color.creamDeep)
+                        .foregroundStyle(Color.appBackground)
+                        .padding(.horizontal, 14).padding(.vertical, 9)
+                        .background(Color.primary)
                         .clipShape(Capsule())
-                        .overlay(Capsule().stroke(Color.ink.opacity(0.1), lineWidth: 1))
                     }
-                    .buttonStyle(.plain)
                 }
             }
 
-            Spacer().frame(height: 14)
+            Spacer().frame(height: 12)
 
             HStack(spacing: 8) {
                 Image(systemName: "magnifyingglass")
-                    .font(.system(size: 12, weight: .light))
-                    .foregroundStyle(Color.inkLight)
+                    .font(.system(size: 13))
+                    .foregroundStyle(Color.secondary)
                 TextField("Search templates…", text: $search)
-                    .textFieldStyle(.plain)
-                    .font(.system(size: 13, weight: .light, design: .rounded))
-                    .foregroundStyle(Color.ink)
+                    .font(.system(size: 15, weight: .light, design: .rounded))
+                    .foregroundStyle(Color.primary)
                 if !search.isEmpty {
                     Button { search = "" } label: {
                         Image(systemName: "xmark.circle.fill")
-                            .foregroundStyle(Color.inkLight.opacity(0.5))
-                            .font(.system(size: 12))
+                            .foregroundStyle(Color.secondary)
+                            .font(.system(size: 14))
                     }
-                    .buttonStyle(.plain)
                 }
             }
-            .padding(.horizontal, 14).padding(.vertical, 10)
-            .background(Color.creamDeep)
-            .clipShape(RoundedRectangle(cornerRadius: 12))
+            .padding(.horizontal, 14).padding(.vertical, 11)
+            .background(Color.appSecondaryBackground)
+            .clipShape(RoundedRectangle(cornerRadius: 13))
         }
-        .padding(.horizontal, 24).padding(.top, 24).padding(.bottom, 14)
+        .padding(.horizontal, 20)
+        .padding(.top, 16)
+        .padding(.bottom, 12)
     }
 
+    // ── Filter bar ────────────────────────────────────
     var filterBar: some View {
         VStack(alignment: .leading, spacing: 0) {
             HStack {
                 Text("Templates")
-                    .font(.system(size: 13, weight: .semibold, design: .rounded))
-                    .foregroundStyle(Color.ink)
+                    .font(.system(size: 14, weight: .semibold, design: .rounded))
+                    .foregroundStyle(Color.primary)
                 Text("(\(filtered.count))")
-                    .font(.system(size: 13, weight: .light, design: .rounded))
-                    .foregroundStyle(Color.inkLight)
+                    .font(.system(size: 14, weight: .light, design: .rounded))
+                    .foregroundStyle(Color.secondary)
                 Spacer()
                 if selectedTag != nil {
                     Button("See all") {
                         withAnimation(.spring(duration: 0.3)) { selectedTag = nil }
                     }
-                    .font(.system(size: 12, weight: .medium, design: .rounded))
-                    .foregroundStyle(Color.inkLight)
-                    .buttonStyle(.plain)
+                    .font(.system(size: 13, weight: .medium, design: .rounded))
+                    .foregroundStyle(Color.secondary)
                 }
             }
-            .padding(.horizontal, 24).padding(.bottom, 10)
+            .padding(.horizontal, 20).padding(.bottom, 10)
 
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 8) {
@@ -781,61 +802,108 @@ struct ContentView: View {
                         }
                     }
                 }
-                .padding(.horizontal, 24)
+                .padding(.horizontal, 20)
             }
-            .padding(.bottom, 16)
+            .padding(.bottom, 14)
         }
     }
 
+    // ── Grid view ─────────────────────────────────────
     var gridView: some View {
         ScrollView {
             LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 12) {
                 ForEach(filtered) { card in
-                    GridCard(card: card, onEdit: { editingCard = card }, onDelete: {
-                        if let cid = card.customId { store.delete(id: cid) }
-                    })
+                    GridCard(card: card,
+                        onEdit: { editingCard = card },
+                        onDelete: { if let cid = card.customId { store.delete(id: cid) } }
+                    )
                 }
             }
-            .padding(.horizontal, 24).padding(.bottom, 24)
+            .padding(.horizontal, 20).padding(.bottom, 32)
         }
     }
 
+    // ── Card deck with swipe ───────────────────────────
     var cardDeck: some View {
         VStack(spacing: 0) {
             if filtered.isEmpty {
                 emptyState
             } else {
-                ZStack(alignment: .top) {
-                    ForEach(Array(filtered.enumerated()), id: \.element.id) { i, card in
-                        let offset = i - activeIndex
-                        if offset >= 0 && offset <= 3 {
-                            TemplateCardView(
-                                card: card,
-                                isActive: offset == 0,
-                                stackOffset: offset,
-                                onCopied: { name in showToast(name) },
-                                onEdit: { editingCard = card }
-                            )
-                            .zIndex(Double(100 - offset))
-                        }
-                    }
-                }
-                .frame(height: 420)
-                .padding(.horizontal, 24)
-                navControls
+                // Use TabView with page style for native swipe on iOS
+                // and ZStack deck on macOS
+                #if os(iOS)
+                iOSCardDeck
+                #else
+                macOSCardDeck
+                #endif
             }
         }
     }
 
+    #if os(iOS)
+    var iOSCardDeck: some View {
+        VStack(spacing: 0) {
+            TabView(selection: $activeIndex) {
+                ForEach(Array(filtered.enumerated()), id: \.element.id) { i, card in
+                    TemplateCardView(
+                        card: card,
+                        isActive: true,
+                        stackOffset: 0,
+                        onCopied: { name in showToast(name) },
+                        onEdit: { editingCard = card }
+                    )
+                    .padding(.horizontal, 20)
+                    .tag(i)
+                }
+            }
+            .tabViewStyle(.page(indexDisplayMode: .never))
+            .frame(height: 360)
+
+            // Dot indicators
+            HStack(spacing: 5) {
+                ForEach(0..<min(filtered.count, 12), id: \.self) { i in
+                    Circle()
+                        .fill(i == activeIndex ? Color.primary : Color.secondary.opacity(0.3))
+                        .frame(width: i == activeIndex ? 7 : 5, height: i == activeIndex ? 7 : 5)
+                        .animation(.spring(duration: 0.2), value: activeIndex)
+                }
+            }
+            .padding(.top, 14)
+        }
+    }
+    #endif
+
+    var macOSCardDeck: some View {
+        VStack(spacing: 0) {
+            ZStack(alignment: .top) {
+                ForEach(Array(filtered.enumerated()), id: \.element.id) { i, card in
+                    let offset = i - activeIndex
+                    if offset >= 0 && offset <= 3 {
+                        TemplateCardView(
+                            card: card,
+                            isActive: offset == 0,
+                            stackOffset: offset,
+                            onCopied: { name in showToast(name) },
+                            onEdit: { editingCard = card }
+                        )
+                        .zIndex(Double(100 - offset))
+                    }
+                }
+            }
+            .frame(height: 420)
+            .padding(.horizontal, 24)
+            navControls
+        }
+    }
+
     var emptyState: some View {
-        VStack(spacing: 8) {
+        VStack(spacing: 10) {
             Text("No templates found")
-                .font(.system(size: 15, weight: .light, design: .rounded))
-                .foregroundStyle(Color.inkLight)
+                .font(.system(size: 16, weight: .light, design: .rounded))
+                .foregroundStyle(Color.secondary)
             Button("Add your first template") { showAdd = true }
-                .font(.system(size: 13, weight: .medium, design: .rounded))
-                .foregroundStyle(Color.inkLight)
-                .buttonStyle(.plain)
+                .font(.system(size: 14, weight: .medium, design: .rounded))
+                .foregroundStyle(Color.secondary)
         }
         .frame(height: 200)
     }
@@ -849,17 +917,17 @@ struct ContentView: View {
             } label: {
                 Image(systemName: "chevron.left")
                     .font(.system(size: 12, weight: .medium))
-                    .foregroundStyle(activeIndex > 0 ? Color.ink : Color.inkLight.opacity(0.25))
+                    .foregroundStyle(activeIndex > 0 ? Color.primary : Color.secondary.opacity(0.25))
                     .frame(width: 32, height: 32)
-                    .background(Color.creamDeep)
+                    .background(Color.appSecondaryBackground)
                     .clipShape(Circle())
             }
-            .buttonStyle(.plain).disabled(activeIndex == 0)
+            .disabled(activeIndex == 0)
 
             HStack(spacing: 5) {
                 ForEach(0..<min(filtered.count, 12), id: \.self) { i in
                     Circle()
-                        .fill(i == activeIndex ? Color.ink : Color.inkLight.opacity(0.25))
+                        .fill(i == activeIndex ? Color.primary : Color.secondary.opacity(0.25))
                         .frame(width: i == activeIndex ? 7 : 5, height: i == activeIndex ? 7 : 5)
                         .animation(.spring(duration: 0.2), value: activeIndex)
                 }
@@ -872,23 +940,27 @@ struct ContentView: View {
             } label: {
                 Image(systemName: "chevron.right")
                     .font(.system(size: 12, weight: .medium))
-                    .foregroundStyle(activeIndex < filtered.count - 1 ? Color.ink : Color.inkLight.opacity(0.25))
+                    .foregroundStyle(activeIndex < filtered.count - 1 ? Color.primary : Color.secondary.opacity(0.25))
                     .frame(width: 32, height: 32)
-                    .background(Color.creamDeep)
+                    .background(Color.appSecondaryBackground)
                     .clipShape(Circle())
             }
-            .buttonStyle(.plain).disabled(activeIndex >= filtered.count - 1)
+            .disabled(activeIndex >= filtered.count - 1)
         }
         .padding(.top, 16)
     }
 
     var toastBanner: some View {
         Text(toastText)
-            .font(.system(size: 12.5, weight: .medium, design: .rounded))
-            .foregroundStyle(.white)
-            .padding(.horizontal, 20).padding(.vertical, 10)
-            .background(Capsule().fill(Color.ink).shadow(color: .black.opacity(0.15), radius: 12, y: 4))
-            .padding(.bottom, 24)
+            .font(.system(size: 14, weight: .medium, design: .rounded))
+            .foregroundStyle(Color.appBackground)
+            .padding(.horizontal, 22).padding(.vertical, 12)
+            .background(
+                Capsule()
+                    .fill(Color.primary)
+                    .shadow(color: Color.primary.opacity(0.2), radius: 16, y: 4)
+            )
+            .padding(.bottom, 36)
     }
 
     func showToast(_ name: String) {
@@ -905,70 +977,55 @@ struct GridCard: View {
     let card: AnyTemplateCard
     let onEdit: () -> Void
     let onDelete: () -> Void
-    @State private var isHovered = false
 
     var body: some View {
         ZStack(alignment: .topLeading) {
-            RoundedRectangle(cornerRadius: 16)
+            RoundedRectangle(cornerRadius: 18)
                 .fill(LinearGradient(
                     colors: [Color(hex: card.colorLight), Color(hex: card.colorDark)],
                     startPoint: .topLeading, endPoint: .bottomTrailing
                 ))
-                .shadow(color: Color(hex: card.colorDark).opacity(0.2), radius: 8, y: 3)
-            RoundedRectangle(cornerRadius: 16)
+                .shadow(color: Color(hex: card.colorDark).opacity(0.25), radius: 10, y: 4)
+            RoundedRectangle(cornerRadius: 18)
                 .fill(LinearGradient(colors: [Color.white.opacity(0.2), Color.clear], startPoint: .top, endPoint: .center))
             VStack(alignment: .leading, spacing: 6) {
                 HStack {
                     Text(card.tag.rawValue)
-                        .font(.system(size: 9, weight: .semibold, design: .rounded))
+                        .font(.system(size: 10, weight: .semibold, design: .rounded))
                         .foregroundStyle(.white.opacity(0.65))
                     Spacer()
-                    if isHovered {
-                        HStack(spacing: 4) {
-                            Button(action: onEdit) {
-                                Image(systemName: "pencil")
-                                    .font(.system(size: 10, weight: .medium))
-                                    .foregroundStyle(.white)
-                                    .frame(width: 22, height: 22)
-                                    .background(Color.white.opacity(0.2))
-                                    .clipShape(Circle())
-                            }
-                            .buttonStyle(.plain)
-                            if card.isCustom {
-                                Button(action: onDelete) {
-                                    Image(systemName: "trash")
-                                        .font(.system(size: 10, weight: .medium))
-                                        .foregroundStyle(.white)
-                                        .frame(width: 22, height: 22)
-                                        .background(Color.white.opacity(0.2))
-                                        .clipShape(Circle())
-                                }
-                                .buttonStyle(.plain)
-                            }
+                    Menu {
+                        Button(action: onEdit) { Label("Edit", systemImage: "pencil") }
+                        if card.isCustom {
+                            Button(role: .destructive, action: onDelete) { Label("Delete", systemImage: "trash") }
                         }
-                        .transition(.opacity)
+                    } label: {
+                        Image(systemName: "ellipsis")
+                            .font(.system(size: 12, weight: .medium))
+                            .foregroundStyle(.white.opacity(0.8))
+                            .frame(width: 26, height: 26)
+                            .background(Color.white.opacity(0.15))
+                            .clipShape(Circle())
                     }
                 }
                 Text(card.title)
-                    .font(.system(size: 13, weight: .semibold, design: .rounded))
+                    .font(.system(size: 14, weight: .semibold, design: .rounded))
                     .foregroundStyle(.white)
                     .lineLimit(2)
                 Text(card.resolveBody(card.people?.first ?? ""))
-                    .font(.system(size: 10, weight: .light, design: .rounded))
+                    .font(.system(size: 11, weight: .light, design: .rounded))
                     .foregroundStyle(.white.opacity(0.7))
                     .lineLimit(3)
                     .lineSpacing(2)
             }
             .padding(14)
         }
-        .frame(height: 140)
-        .scaleEffect(isHovered ? 1.02 : 1.0)
-        .animation(.spring(duration: 0.2), value: isHovered)
-        .onHover { isHovered = $0 }
+        .frame(height: 150)
+        .onTapGesture { onEdit() }
     }
 }
 
-// ── Template card (deck) ──────────────────────────────
+// ── Template card ─────────────────────────────────────
 struct TemplateCardView: View {
     let card: AnyTemplateCard
     let isActive: Bool
@@ -992,106 +1049,107 @@ struct TemplateCardView: View {
 
     var body: some View {
         ZStack(alignment: .topLeading) {
-            RoundedRectangle(cornerRadius: 24)
+            RoundedRectangle(cornerRadius: 28)
                 .fill(LinearGradient(
                     colors: [Color(hex: card.colorLight), Color(hex: card.colorDark)],
                     startPoint: .topLeading, endPoint: .bottomTrailing
                 ))
-                .shadow(color: Color(hex: card.colorDark).opacity(isActive ? 0.3 : 0.1), radius: isActive ? 20 : 6, y: isActive ? 8 : 3)
-            RoundedRectangle(cornerRadius: 24)
+                .shadow(color: Color(hex: card.colorDark).opacity(isActive ? 0.35 : 0.12), radius: isActive ? 24 : 8, y: isActive ? 10 : 3)
+
+            RoundedRectangle(cornerRadius: 28)
                 .fill(LinearGradient(colors: [Color.white.opacity(0.25), Color.clear], startPoint: .top, endPoint: .center))
 
             VStack(alignment: .leading, spacing: 0) {
+                // Tag + edit button
                 HStack {
                     Text(card.tag.rawValue)
-                        .font(.system(size: 10, weight: .semibold, design: .rounded))
+                        .font(.system(size: 11, weight: .semibold, design: .rounded))
                         .foregroundStyle(.white.opacity(0.65))
                     Spacer()
                     if isActive {
                         Button(action: onEdit) {
                             HStack(spacing: 4) {
-                                Image(systemName: "pencil")
-                                    .font(.system(size: 10, weight: .medium))
-                                Text(card.isCustom ? "Edit" : "Edit")
-                                    .font(.system(size: 11, weight: .medium, design: .rounded))
+                                Image(systemName: "pencil").font(.system(size: 10, weight: .medium))
+                                Text("Edit").font(.system(size: 12, weight: .medium, design: .rounded))
                             }
-                            .foregroundStyle(.white.opacity(0.8))
-                            .padding(.horizontal, 10).padding(.vertical, 5)
-                            .background(Color.white.opacity(0.15))
+                            .foregroundStyle(.white.opacity(0.85))
+                            .padding(.horizontal, 12).padding(.vertical, 6)
+                            .background(Color.white.opacity(0.18))
                             .clipShape(Capsule())
                         }
-                        .buttonStyle(.plain)
                     }
                 }
-                .padding(.top, 22).padding(.horizontal, 22)
+                .padding(.top, 24).padding(.horizontal, 24)
 
-                Divider().background(Color.white.opacity(0.2)).padding(.horizontal, 22).padding(.vertical, 12)
+                Divider().background(Color.white.opacity(0.2)).padding(.horizontal, 24).padding(.vertical, 14)
 
+                // Title + body
                 if isActive {
                     ScrollView {
-                        VStack(alignment: .leading, spacing: 8) {
+                        VStack(alignment: .leading, spacing: 10) {
                             Text(card.title)
-                                .font(.system(size: 18, weight: .bold, design: .rounded))
+                                .font(.system(size: 20, weight: .bold, design: .rounded))
                                 .foregroundStyle(.white)
                             Text(card.resolveBody(card.people?.first ?? ""))
-                                .font(.system(size: 12.5, weight: .light, design: .rounded))
+                                .font(.system(size: 13, weight: .light, design: .rounded))
                                 .foregroundStyle(.white.opacity(0.88))
-                                .lineSpacing(4)
+                                .lineSpacing(5)
                         }
                         .frame(maxWidth: .infinity, alignment: .leading)
-                        .padding(.horizontal, 22)
+                        .padding(.horizontal, 24)
                     }
-                    .frame(maxHeight: 120)
+                    .frame(maxHeight: 110)
                 } else {
                     VStack(alignment: .leading, spacing: 4) {
                         Text(card.title)
-                            .font(.system(size: 14, weight: .semibold, design: .rounded))
-                            .foregroundStyle(.white.opacity(0.7))
-                            .lineLimit(1)
+                            .font(.system(size: 15, weight: .semibold, design: .rounded))
+                            .foregroundStyle(.white.opacity(0.7)).lineLimit(1)
                         Text(card.resolveBody(card.people?.first ?? ""))
-                            .font(.system(size: 10, weight: .light, design: .rounded))
-                            .foregroundStyle(.white.opacity(0.4))
-                            .lineLimit(2)
+                            .font(.system(size: 11, weight: .light, design: .rounded))
+                            .foregroundStyle(.white.opacity(0.4)).lineLimit(2)
                     }
-                    .padding(.horizontal, 22)
+                    .padding(.horizontal, 24)
                 }
 
-                Spacer(minLength: 10)
+                Spacer(minLength: 12)
 
+                // Copy buttons
                 if isActive {
                     if let people = card.people {
                         ScrollView(.horizontal, showsIndicators: false) {
-                            HStack(spacing: 8) {
+                            HStack(spacing: 10) {
                                 ForEach(people, id: \.self) { person in
                                     PersonButton(name: person, isCopied: copiedPerson == person) {
                                         doCopy(card.resolveBody(person), person: person)
                                     }
                                 }
                             }
-                            .padding(.horizontal, 22).padding(.bottom, 22)
+                            .padding(.horizontal, 24).padding(.bottom, 26)
                         }
                     } else {
                         Button { doCopy(card.resolveBody(""), person: "") } label: {
-                            HStack(spacing: 6) {
+                            HStack(spacing: 8) {
                                 Image(systemName: copiedPerson != nil ? "checkmark" : "doc.on.doc")
-                                    .font(.system(size: 11, weight: .medium))
+                                    .font(.system(size: 13, weight: .medium))
                                 Text(copiedPerson != nil ? "Copied!" : "Copy")
-                                    .font(.system(size: 13, weight: .semibold, design: .rounded))
+                                    .font(.system(size: 15, weight: .semibold, design: .rounded))
                             }
                             .foregroundStyle(Color(hex: card.colorDark))
-                            .padding(.horizontal, 18).padding(.vertical, 10)
-                            .background(Color.white.opacity(0.9))
+                            .padding(.horizontal, 22).padding(.vertical, 13)
+                            .background(Color.white.opacity(0.92))
                             .clipShape(Capsule())
                         }
-                        .buttonStyle(.plain)
-                        .padding(.horizontal, 22).padding(.bottom, 22)
+                        .padding(.horizontal, 24).padding(.bottom, 26)
                     }
                 } else {
-                    Color.clear.frame(height: 52)
+                    Color.clear.frame(height: 60)
                 }
             }
         }
-        .frame(maxWidth: .infinity).frame(height: 320)
+        .frame(maxWidth: .infinity)
+        .frame(height: 310)
+        // On macOS use stacking offsets; on iOS TabView handles layout
+        #if os(macOS)
         .scaleEffect(stackScale)
         .offset(y: stackY)
         .offset(x: isActive ? dragX : 0)
@@ -1103,15 +1161,11 @@ struct TemplateCardView: View {
             .onEnded { _ in withAnimation(.spring(response: 0.4, dampingFraction: 0.7)) { dragX = 0 } }
             : nil
         )
+        #endif
     }
 
     func doCopy(_ text: String, person: String) {
-        #if os(macOS)
-        NSPasteboard.general.clearContents()
-        NSPasteboard.general.setString(text, forType: .string)
-        #else
-        UIPasteboard.general.string = text
-        #endif
+        copyToClipboard(text)
         withAnimation(.spring(duration: 0.2)) { copiedPerson = person }
         onCopied(person)
         DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
@@ -1120,8 +1174,54 @@ struct TemplateCardView: View {
     }
 }
 
+// ── Filter pill ───────────────────────────────────────
+struct FilterPill: View {
+    let tag: TemplateTag; let isActive: Bool; let action: () -> Void
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 5) {
+                Circle().fill(Color(hex: tag.defaultColorPair.dark)).frame(width: 7, height: 7)
+                Text(tag.rawValue)
+                    .font(.system(size: 13, weight: isActive ? .semibold : .light, design: .rounded))
+                    .foregroundStyle(isActive ? Color.primary : Color.secondary)
+            }
+            .padding(.horizontal, 14).padding(.vertical, 8)
+            .background(isActive ? Color.appSecondaryBackground : Color.clear)
+            .clipShape(Capsule())
+            .overlay(Capsule().stroke(isActive ? Color.primary.opacity(0.15) : Color.secondary.opacity(0.25), lineWidth: 1))
+        }
+    }
+}
+
+// ── Person button ─────────────────────────────────────
+struct PersonButton: View {
+    let name: String; let isCopied: Bool; let action: () -> Void
+    var body: some View {
+        Button(action: action) {
+            Text(isCopied ? "✓ \(name)" : name)
+                .font(.system(size: 14, weight: .medium, design: .rounded))
+                .foregroundStyle(.white)
+                .padding(.horizontal, 16).padding(.vertical, 10)
+                .background(Capsule().fill(isCopied ? Color.white.opacity(0.35) : Color.white.opacity(0.22)))
+        }
+    }
+}
+
+// ── Form field ────────────────────────────────────────
+struct FormField<Content: View>: View {
+    let label: String
+    @ViewBuilder let content: Content
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text(label)
+                .font(.system(size: 12, weight: .semibold, design: .rounded))
+                .foregroundStyle(Color.secondary)
+            content
+        }
+    }
+}
+
 // ── Built-in edit view ────────────────────────────────
-// Lets user duplicate a built-in as a custom editable template
 struct BuiltInEditView: View {
     let card: AnyTemplateCard
     @ObservedObject var store: TemplateStore
@@ -1130,16 +1230,13 @@ struct BuiltInEditView: View {
     @State private var title: String
     @State private var bodyText: String
     @State private var selectedTag: TemplateTag
-    @State private var peopleInput: String
     @State private var hasPeople: Bool
+    @State private var peopleInput: String
     @State private var selectedColorPair: CardColorPair
     @State private var showError = false
-    @State private var saved = false
 
     init(card: AnyTemplateCard, store: TemplateStore, onDismiss: @escaping () -> Void) {
-        self.card = card
-        self.store = store
-        self.onDismiss = onDismiss
+        self.card = card; self.store = store; self.onDismiss = onDismiss
         _title = State(initialValue: card.title)
         _bodyText = State(initialValue: card.resolveBody(card.people?.first ?? ""))
         _selectedTag = State(initialValue: card.tag)
@@ -1153,153 +1250,77 @@ struct BuiltInEditView: View {
     }
 
     var body: some View {
-        ZStack {
-            Color.cream.ignoresSafeArea()
-            VStack(alignment: .leading, spacing: 0) {
-                HStack {
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text("Edit template")
-                            .font(.system(size: 22, weight: .bold, design: .rounded))
-                            .foregroundStyle(Color.ink)
-                        Text("Saves as a custom copy — original stays intact")
-                            .font(.system(size: 12, weight: .light, design: .rounded))
-                            .foregroundStyle(Color.inkLight)
-                    }
-                    Spacer()
-                    Button(action: onDismiss) {
-                        Image(systemName: "xmark")
-                            .font(.system(size: 12, weight: .medium))
-                            .foregroundStyle(Color.inkLight)
-                            .frame(width: 28, height: 28)
-                            .background(Color.creamDeep)
-                            .clipShape(Circle())
-                    }
-                    .buttonStyle(.plain)
+        NavigationView {
+            Form {
+                Section("Title") {
+                    TextField("Title", text: $title)
+                        .font(.system(size: 16, weight: .light, design: .rounded))
                 }
-                .padding(.horizontal, 28).padding(.top, 28).padding(.bottom, 24)
-
-                Divider().background(Color.inkLight.opacity(0.1))
-
-                ScrollView {
-                    VStack(alignment: .leading, spacing: 20) {
-                        FormField(label: "Title") {
-                            TextField("Title", text: $title)
-                                .textFieldStyle(.plain)
-                                .font(.system(size: 14, weight: .light, design: .rounded))
-                                .foregroundStyle(Color.ink)
-                                .padding(12)
-                                .background(Color.creamDeep)
-                                .clipShape(RoundedRectangle(cornerRadius: 10))
-                        }
-
-                        FormField(label: "Card color") {
-                            LazyVGrid(columns: Array(repeating: GridItem(.flexible()), count: 5), spacing: 8) {
-                                ForEach(cardColorPresets) { pair in
-                                    Button {
-                                        withAnimation(.spring(duration: 0.2)) { selectedColorPair = pair }
-                                    } label: {
-                                        ZStack {
-                                            RoundedRectangle(cornerRadius: 8)
-                                                .fill(LinearGradient(
-                                                    colors: [Color(hex: pair.light), Color(hex: pair.dark)],
-                                                    startPoint: .topLeading, endPoint: .bottomTrailing
-                                                ))
-                                                .frame(height: 36)
-                                            if selectedColorPair.id == pair.id {
-                                                Image(systemName: "checkmark")
-                                                    .font(.system(size: 11, weight: .bold))
-                                                    .foregroundStyle(.white)
-                                            }
-                                        }
-                                        .overlay(RoundedRectangle(cornerRadius: 8).stroke(selectedColorPair.id == pair.id ? Color.ink.opacity(0.4) : Color.clear, lineWidth: 2))
+                Section("Card color") {
+                    LazyVGrid(columns: Array(repeating: GridItem(.flexible()), count: 5), spacing: 8) {
+                        ForEach(cardColorPresets) { pair in
+                            Button {
+                                withAnimation { selectedColorPair = pair }
+                            } label: {
+                                ZStack {
+                                    RoundedRectangle(cornerRadius: 8)
+                                        .fill(LinearGradient(
+                                            colors: [Color(hex: pair.light), Color(hex: pair.dark)],
+                                            startPoint: .topLeading, endPoint: .bottomTrailing
+                                        ))
+                                        .frame(height: 40)
+                                    if selectedColorPair.id == pair.id {
+                                        Image(systemName: "checkmark")
+                                            .font(.system(size: 13, weight: .bold))
+                                            .foregroundStyle(.white)
                                     }
-                                    .buttonStyle(.plain)
                                 }
                             }
-                        }
-
-                        FormField(label: "Template body") {
-                            VStack(alignment: .leading, spacing: 8) {
-                                ZStack(alignment: .topLeading) {
-                                    if bodyText.isEmpty {
-                                        Text("Template text…")
-                                            .font(.system(size: 13, weight: .light, design: .rounded))
-                                            .foregroundStyle(Color.inkLight.opacity(0.6))
-                                            .padding(12)
-                                            .allowsHitTesting(false)
-                                    }
-                                    TextEditor(text: $bodyText)
-                                        .font(.system(size: 13, weight: .light, design: .rounded))
-                                        .foregroundStyle(Color.ink)
-                                        .scrollContentBackground(.hidden)
-                                        .frame(minHeight: 140)
-                                        .padding(8)
-                                }
-                                .background(Color.creamDeep)
-                                .clipShape(RoundedRectangle(cornerRadius: 10))
-
-                                VStack(alignment: .leading, spacing: 4) {
-                                    Text("Placeholder tips")
-                                        .font(.system(size: 11, weight: .semibold, design: .rounded))
-                                        .foregroundStyle(Color.inkLight)
-                                    Text("• Use [name] where you want the selected person's name to appear automatically when copying.")
-                                        .font(.system(size: 11, weight: .light, design: .rounded))
-                                        .foregroundStyle(Color.inkLight)
-                                        .lineSpacing(2)
-                                    Text("• Use [placeholder] for anything you'll fill in manually after pasting, like [link] or [issue].")
-                                        .font(.system(size: 11, weight: .light, design: .rounded))
-                                        .foregroundStyle(Color.inkLight)
-                                        .lineSpacing(2)
-                                }
-                                .padding(10)
-                                .background(Color.creamDeep.opacity(0.6))
-                                .clipShape(RoundedRectangle(cornerRadius: 8))
-                            }
-                        }
-
-                        FormField(label: "People picker") {
-                            VStack(alignment: .leading, spacing: 10) {
-                                Toggle(isOn: $hasPeople.animation()) {
-                                    Text("Add person picker to this card")
-                                        .font(.system(size: 13, weight: .light, design: .rounded))
-                                        .foregroundStyle(Color.ink)
-                                }
-                                .toggleStyle(.switch)
-                                if hasPeople {
-                                    TextField("Alex, Jordan, Casey…", text: $peopleInput)
-                                        .textFieldStyle(.plain)
-                                        .font(.system(size: 13, weight: .light, design: .rounded))
-                                        .foregroundStyle(Color.ink)
-                                        .padding(12)
-                                        .background(Color.creamDeep)
-                                        .clipShape(RoundedRectangle(cornerRadius: 10))
-                                    Text("Separate names with commas")
-                                        .font(.system(size: 11, weight: .light, design: .rounded))
-                                        .foregroundStyle(Color.inkLight)
-                                }
-                            }
-                        }
-
-                        if showError {
-                            Text("Please add a title and body before saving.")
-                                .font(.system(size: 12, weight: .light, design: .rounded))
-                                .foregroundStyle(Color(hex: "C17767"))
+                            .buttonStyle(.plain)
                         }
                     }
-                    .padding(28)
+                    .padding(.vertical, 4)
                 }
-
-                Divider().background(Color.inkLight.opacity(0.1))
-
-                HStack {
+                Section {
+                    TextEditor(text: $bodyText)
+                        .font(.system(size: 15, weight: .light, design: .rounded))
+                        .frame(minHeight: 120)
+                } header: {
+                    Text("Template body")
+                } footer: {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("• Use [name] to auto-insert the selected person's name when copying.")
+                        Text("• Use [placeholder] for things you'll fill in manually, like [link].")
+                    }
+                    .font(.system(size: 12, weight: .light, design: .rounded))
+                }
+                Section("People picker") {
+                    Toggle("Add person picker", isOn: $hasPeople.animation())
+                        .font(.system(size: 16, weight: .light, design: .rounded))
+                    if hasPeople {
+                        TextField("Alex, Jordan, Casey…", text: $peopleInput)
+                            .font(.system(size: 15, weight: .light, design: .rounded))
+                    }
+                }
+                if showError {
+                    Section {
+                        Text("Please add a title and body before saving.")
+                            .foregroundStyle(.red)
+                            .font(.system(size: 13, weight: .light, design: .rounded))
+                    }
+                }
+            }
+            .navigationTitle("Edit template")
+            #if os(iOS)
+            .navigationBarTitleDisplayMode(.inline)
+            #endif
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
                     Button("Cancel", action: onDismiss)
-                        .font(.system(size: 13, weight: .medium, design: .rounded))
-                        .foregroundStyle(Color.inkLight)
-                        .padding(.horizontal, 20).padding(.vertical, 10)
-                        .background(Color.creamDeep).clipShape(Capsule())
-                        .buttonStyle(.plain)
-                    Spacer()
-                    Button {
+                        .font(.system(size: 16, weight: .medium, design: .rounded))
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Save as custom") {
                         let t = title.trimmingCharacters(in: .whitespaces)
                         let b = bodyText.trimmingCharacters(in: .whitespaces)
                         guard !t.isEmpty, !b.isEmpty else { showError = true; return }
@@ -1311,22 +1332,11 @@ struct BuiltInEditView: View {
                             colorDark: selectedColorPair.dark
                         ))
                         onDismiss()
-                    } label: {
-                        HStack(spacing: 6) {
-                            Image(systemName: "plus").font(.system(size: 11, weight: .semibold))
-                            Text("Save as custom")
-                                .font(.system(size: 13, weight: .semibold, design: .rounded))
-                        }
-                        .foregroundStyle(.white)
-                        .padding(.horizontal, 20).padding(.vertical, 10)
-                        .background(Color.ink).clipShape(Capsule())
                     }
-                    .buttonStyle(.plain)
+                    .font(.system(size: 16, weight: .semibold, design: .rounded))
                 }
-                .padding(.horizontal, 28).padding(.vertical, 18)
             }
         }
-        .frame(minWidth: 480, minHeight: 600)
     }
 }
 
@@ -1351,194 +1361,125 @@ struct AddEditTemplateView: View {
     }
 
     var body: some View {
-        ZStack {
-            Color.cream.ignoresSafeArea()
-            VStack(alignment: .leading, spacing: 0) {
-                HStack {
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text(isEditing ? "Edit template" : "New template")
-                            .font(.system(size: 22, weight: .bold, design: .rounded))
-                            .foregroundStyle(Color.ink)
-                        Text(isEditing ? "Update this template" : "Add a reusable message to your deck")
-                            .font(.system(size: 13, weight: .light, design: .rounded))
-                            .foregroundStyle(Color.inkLight)
-                    }
-                    Spacer()
-                    Button { dismiss() } label: {
-                        Image(systemName: "xmark")
-                            .font(.system(size: 12, weight: .medium))
-                            .foregroundStyle(Color.inkLight)
-                            .frame(width: 28, height: 28)
-                            .background(Color.creamDeep)
-                            .clipShape(Circle())
-                    }
-                    .buttonStyle(.plain)
-                }
-                .padding(.horizontal, 28).padding(.top, 28).padding(.bottom, 24)
-
-                Divider().background(Color.inkLight.opacity(0.1))
-
-                ScrollView {
-                    VStack(alignment: .leading, spacing: 20) {
-                        FormField(label: "Title") {
-                            TextField("e.g. Design revision request", text: $title)
-                                .textFieldStyle(.plain)
-                                .font(.system(size: 14, weight: .light, design: .rounded))
-                                .foregroundStyle(Color.ink)
-                                .padding(12)
-                                .background(Color.creamDeep)
-                                .clipShape(RoundedRectangle(cornerRadius: 10))
-                        }
-
-                        FormField(label: "Category") {
-                            ScrollView(.horizontal, showsIndicators: false) {
-                                HStack(spacing: 8) {
-                                    ForEach(TemplateTag.allCases, id: \.self) { tag in
-                                        Button {
-                                            withAnimation(.spring(duration: 0.2)) { selectedTag = tag }
-                                        } label: {
-                                            HStack(spacing: 5) {
-                                                Circle().fill(Color(hex: tag.defaultColorPair.dark)).frame(width: 6, height: 6)
-                                                Text(tag.rawValue)
-                                                    .font(.system(size: 12, weight: selectedTag == tag ? .semibold : .light, design: .rounded))
-                                                    .foregroundStyle(selectedTag == tag ? Color.ink : Color.inkLight)
-                                            }
-                                            .padding(.horizontal, 12).padding(.vertical, 7)
-                                            .background(selectedTag == tag ? Color.creamDeep : Color.clear)
-                                            .clipShape(Capsule())
-                                            .overlay(Capsule().stroke(selectedTag == tag ? Color.ink.opacity(0.15) : Color.inkLight.opacity(0.2), lineWidth: 1))
-                                        }
-                                        .buttonStyle(.plain)
-                                    }
-                                }
-                            }
-                        }
-
-                        FormField(label: "Card color") {
-                            LazyVGrid(columns: Array(repeating: GridItem(.flexible()), count: 5), spacing: 8) {
-                                ForEach(cardColorPresets) { pair in
-                                    Button {
-                                        withAnimation(.spring(duration: 0.2)) { selectedColorPair = pair }
-                                    } label: {
-                                        ZStack {
-                                            RoundedRectangle(cornerRadius: 8)
-                                                .fill(LinearGradient(
-                                                    colors: [Color(hex: pair.light), Color(hex: pair.dark)],
-                                                    startPoint: .topLeading, endPoint: .bottomTrailing
-                                                ))
-                                                .frame(height: 36)
-                                            if selectedColorPair.id == pair.id {
-                                                Image(systemName: "checkmark")
-                                                    .font(.system(size: 11, weight: .bold))
-                                                    .foregroundStyle(.white)
-                                            }
-                                        }
-                                        .overlay(RoundedRectangle(cornerRadius: 8).stroke(selectedColorPair.id == pair.id ? Color.ink.opacity(0.4) : Color.clear, lineWidth: 2))
-                                    }
-                                    .buttonStyle(.plain)
-                                }
-                            }
-                        }
-
-                        FormField(label: "Template body") {
-                            VStack(alignment: .leading, spacing: 8) {
-                                ZStack(alignment: .topLeading) {
-                                    if bodyText.isEmpty {
-                                        Text("Write your template here.")
-                                            .font(.system(size: 13, weight: .light, design: .rounded))
-                                            .foregroundStyle(Color.inkLight.opacity(0.6))
-                                            .padding(12)
-                                            .allowsHitTesting(false)
-                                    }
-                                    TextEditor(text: $bodyText)
-                                        .font(.system(size: 13, weight: .light, design: .rounded))
-                                        .foregroundStyle(Color.ink)
-                                        .scrollContentBackground(.hidden)
-                                        .frame(minHeight: 140)
-                                        .padding(8)
-                                }
-                                .background(Color.creamDeep)
-                                .clipShape(RoundedRectangle(cornerRadius: 10))
-
-                                VStack(alignment: .leading, spacing: 4) {
-                                    Text("Placeholder tips")
-                                        .font(.system(size: 11, weight: .semibold, design: .rounded))
-                                        .foregroundStyle(Color.inkLight)
-                                    Text("• Use [name] where you want the selected person's name to appear automatically when copying.")
-                                        .font(.system(size: 11, weight: .light, design: .rounded))
-                                        .foregroundStyle(Color.inkLight)
-                                        .lineSpacing(2)
-                                    Text("• Use [placeholder] for anything you'll fill in manually after pasting, like [link] or [issue].")
-                                        .font(.system(size: 11, weight: .light, design: .rounded))
-                                        .foregroundStyle(Color.inkLight)
-                                        .lineSpacing(2)
-                                }
-                                .padding(10)
-                                .background(Color.creamDeep.opacity(0.6))
-                                .clipShape(RoundedRectangle(cornerRadius: 8))
-                            }
-                        }
-
-                        FormField(label: "People picker") {
-                            VStack(alignment: .leading, spacing: 10) {
-                                Toggle(isOn: $hasPeople.animation()) {
-                                    Text("Add person picker to this card")
-                                        .font(.system(size: 13, weight: .light, design: .rounded))
-                                        .foregroundStyle(Color.ink)
-                                }
-                                .toggleStyle(.switch)
-                                if hasPeople {
-                                    TextField("Alex, Jordan, Casey…", text: $peopleInput)
-                                        .textFieldStyle(.plain)
-                                        .font(.system(size: 13, weight: .light, design: .rounded))
-                                        .foregroundStyle(Color.ink)
-                                        .padding(12)
-                                        .background(Color.creamDeep)
-                                        .clipShape(RoundedRectangle(cornerRadius: 10))
-                                    Text("Separate names with commas")
-                                        .font(.system(size: 11, weight: .light, design: .rounded))
-                                        .foregroundStyle(Color.inkLight)
-                                }
-                            }
-                        }
-
-                        if showError {
-                            Text("Please add a title and body before saving.")
-                                .font(.system(size: 12, weight: .light, design: .rounded))
-                                .foregroundStyle(Color(hex: "C17767"))
-                        }
-                    }
-                    .padding(28)
+        NavigationView {
+            Form {
+                Section("Title") {
+                    TextField("e.g. Design revision request", text: $title)
+                        .font(.system(size: 16, weight: .light, design: .rounded))
                 }
 
-                Divider().background(Color.inkLight.opacity(0.1))
+                Section("Category") {
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        HStack(spacing: 8) {
+                            ForEach(TemplateTag.allCases, id: \.self) { tag in
+                                Button {
+                                    withAnimation { selectedTag = tag }
+                                } label: {
+                                    HStack(spacing: 5) {
+                                        Circle().fill(Color(hex: tag.defaultColorPair.dark)).frame(width: 7, height: 7)
+                                        Text(tag.rawValue)
+                                            .font(.system(size: 13, weight: selectedTag == tag ? .semibold : .light, design: .rounded))
+                                            .foregroundStyle(selectedTag == tag ? Color.primary : Color.secondary)
+                                    }
+                                    .padding(.horizontal, 12).padding(.vertical, 7)
+                                    .background(selectedTag == tag ? Color.appSecondaryBackground : Color.clear)
+                                    .clipShape(Capsule())
+                                    .overlay(Capsule().stroke(selectedTag == tag ? Color.primary.opacity(0.2) : Color.secondary.opacity(0.2), lineWidth: 1))
+                                }
+                                .buttonStyle(.plain)
+                            }
+                        }
+                        .padding(.vertical, 4)
+                    }
+                }
 
-                HStack(spacing: 10) {
-                    Button("Cancel") { dismiss() }
-                        .font(.system(size: 13, weight: .medium, design: .rounded))
-                        .foregroundStyle(Color.inkLight)
-                        .padding(.horizontal, 20).padding(.vertical, 10)
-                        .background(Color.creamDeep).clipShape(Capsule())
-                        .buttonStyle(.plain)
+                Section("Card color") {
+                    LazyVGrid(columns: Array(repeating: GridItem(.flexible()), count: 5), spacing: 8) {
+                        ForEach(cardColorPresets) { pair in
+                            Button {
+                                withAnimation { selectedColorPair = pair }
+                            } label: {
+                                ZStack {
+                                    RoundedRectangle(cornerRadius: 8)
+                                        .fill(LinearGradient(
+                                            colors: [Color(hex: pair.light), Color(hex: pair.dark)],
+                                            startPoint: .topLeading, endPoint: .bottomTrailing
+                                        ))
+                                        .frame(height: 40)
+                                    if selectedColorPair.id == pair.id {
+                                        Image(systemName: "checkmark")
+                                            .font(.system(size: 13, weight: .bold))
+                                            .foregroundStyle(.white)
+                                    }
+                                }
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
+                    .padding(.vertical, 4)
+                }
 
-                    if isEditing {
-                        Button {
+                Section {
+                    TextEditor(text: $bodyText)
+                        .font(.system(size: 15, weight: .light, design: .rounded))
+                        .frame(minHeight: 120)
+                } header: {
+                    Text("Template body")
+                } footer: {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("• Use [name] to auto-insert the selected person's name when copying.")
+                        Text("• Use [placeholder] for things you'll fill in manually, like [link] or [issue].")
+                    }
+                    .font(.system(size: 12, weight: .light, design: .rounded))
+                }
+
+                Section("People picker") {
+                    Toggle("Add person picker", isOn: $hasPeople.animation())
+                        .font(.system(size: 16, weight: .light, design: .rounded))
+                    if hasPeople {
+                        TextField("Alex, Jordan, Casey…", text: $peopleInput)
+                            .font(.system(size: 15, weight: .light, design: .rounded))
+                        Text("Separate names with commas")
+                            .font(.system(size: 12, weight: .light, design: .rounded))
+                            .foregroundStyle(Color.secondary)
+                    }
+                }
+
+                if isEditing {
+                    Section {
+                        Button(role: .destructive) {
                             if let e = editing { store.delete(id: e.id) }
                             dismiss()
                         } label: {
-                            Text("Delete")
-                                .font(.system(size: 13, weight: .medium, design: .rounded))
-                                .foregroundStyle(Color(hex: "C17767"))
-                                .padding(.horizontal, 20).padding(.vertical, 10)
-                                .background(Color(hex: "C17767").opacity(0.1))
-                                .clipShape(Capsule())
+                            HStack {
+                                Spacer()
+                                Text("Delete template")
+                                    .font(.system(size: 16, weight: .medium, design: .rounded))
+                                Spacer()
+                            }
                         }
-                        .buttonStyle(.plain)
                     }
+                }
 
-                    Spacer()
-
-                    Button {
+                if showError {
+                    Section {
+                        Text("Please add a title and body before saving.")
+                            .foregroundStyle(.red)
+                            .font(.system(size: 13, weight: .light, design: .rounded))
+                    }
+                }
+            }
+            .navigationTitle(isEditing ? "Edit template" : "New template")
+            #if os(iOS)
+            .navigationBarTitleDisplayMode(.inline)
+            #endif
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") { dismiss() }
+                        .font(.system(size: 16, weight: .medium, design: .rounded))
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button(isEditing ? "Save" : "Add") {
                         let t = title.trimmingCharacters(in: .whitespaces)
                         let b = bodyText.trimmingCharacters(in: .whitespaces)
                         guard !t.isEmpty, !b.isEmpty else { showError = true; return }
@@ -1559,23 +1500,11 @@ struct AddEditTemplateView: View {
                             ))
                         }
                         dismiss()
-                    } label: {
-                        HStack(spacing: 6) {
-                            Image(systemName: isEditing ? "checkmark" : "plus")
-                                .font(.system(size: 11, weight: .semibold))
-                            Text(isEditing ? "Save changes" : "Add template")
-                                .font(.system(size: 13, weight: .semibold, design: .rounded))
-                        }
-                        .foregroundStyle(.white)
-                        .padding(.horizontal, 20).padding(.vertical, 10)
-                        .background(Color.ink).clipShape(Capsule())
                     }
-                    .buttonStyle(.plain)
+                    .font(.system(size: 16, weight: .semibold, design: .rounded))
                 }
-                .padding(.horizontal, 28).padding(.vertical, 18)
             }
         }
-        .frame(minWidth: 480, minHeight: 600)
         .onAppear { loadEditing() }
     }
 
@@ -1588,59 +1517,6 @@ struct AddEditTemplateView: View {
     }
 
     func dismiss() { onDismiss?(); isPresented = false }
-}
-
-// ── Filter pill ───────────────────────────────────────
-struct FilterPill: View {
-    let tag: TemplateTag; let isActive: Bool; let action: () -> Void
-    var body: some View {
-        Button(action: action) {
-            HStack(spacing: 5) {
-                Circle().fill(Color(hex: tag.defaultColorPair.dark)).frame(width: 7, height: 7)
-                Text(tag.rawValue)
-                    .font(.system(size: 12, weight: isActive ? .semibold : .light, design: .rounded))
-                    .foregroundStyle(isActive ? Color.ink : Color.inkLight)
-            }
-            .padding(.horizontal, 14).padding(.vertical, 7)
-            .background(isActive ? Color.creamDeep : Color.clear)
-            .clipShape(Capsule())
-            .overlay(Capsule().stroke(isActive ? Color.ink.opacity(0.1) : Color.inkLight.opacity(0.2), lineWidth: 1))
-        }
-        .buttonStyle(.plain)
-    }
-}
-
-// ── Person button ─────────────────────────────────────
-struct PersonButton: View {
-    let name: String; let isCopied: Bool; let action: () -> Void
-    @State private var isHovered = false
-    var body: some View {
-        Button(action: action) {
-            Text(isCopied ? "✓ \(name)" : name)
-                .font(.system(size: 12.5, weight: .medium, design: .rounded))
-                .foregroundStyle(.white)
-                .padding(.horizontal, 14).padding(.vertical, 8)
-                .background(Capsule().fill(isHovered || isCopied ? Color.white.opacity(0.35) : Color.white.opacity(0.2)))
-        }
-        .buttonStyle(.plain)
-        .onHover { isHovered = $0 }
-        .scaleEffect(isHovered ? 1.04 : 1.0)
-        .animation(.spring(duration: 0.18), value: isHovered)
-    }
-}
-
-// ── Form field ────────────────────────────────────────
-struct FormField<Content: View>: View {
-    let label: String
-    @ViewBuilder let content: Content
-    var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text(label)
-                .font(.system(size: 11, weight: .semibold, design: .rounded))
-                .foregroundStyle(Color.inkLight)
-            content
-        }
-    }
 }
 
 #Preview { RootView() }
